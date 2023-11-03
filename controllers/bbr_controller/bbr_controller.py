@@ -102,7 +102,7 @@ class Controller:
                 inputs_avg = [sum(x) for x in zip(*inputs_avg)]
                 self.inputs = [x/smooth for x in inputs_avg]
                 # Compute and actuate
-                self.sense_compute_and_actuate()
+                self.sense_compute_actuate()
                 # Reset
                 count = 0
                 inputs_avg = []
