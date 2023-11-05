@@ -1,0 +1,2 @@
+1. https://www.cyberbotics.com/doc/reference/lightsensor?tab-language=python#wb_light_sensor_get_value
+note: the light sensor code was inspired by the code for the proximity sensor

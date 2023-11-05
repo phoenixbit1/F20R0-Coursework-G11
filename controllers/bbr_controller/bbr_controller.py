@@ -28,7 +28,14 @@ class Controller:
             sensor_name = 'ps' + str(i)
             self.proximity_sensors.append(self.robot.getDevice(sensor_name))
             self.proximity_sensors[i].enable(self.time_step)
-       
+
+        # enable light sensors
+        self.light_sensors = []
+        for i in range(8):
+            sensor_name = 'ls' + str(i)
+            self.light_sensors.append(self.robot.getDevice(sensor_name))
+            self.light_sensors[i].enable(self.time_step)
+
         # Enable Ground Sensors
         self.left_ir = self.robot.getDevice('gs0')
         self.left_ir.enable(self.time_step)
@@ -44,6 +51,10 @@ class Controller:
         # Flag for if the light was on or off
         # initially False
         self.flag_light = False
+        # flag for what direction to turn
+        self.flag_dir = 0
+        # flag for avoiding obstacles
+        self.flag_turn = 0
     # end contructor
     
     # taken from lab <n>
@@ -55,10 +66,54 @@ class Controller:
         return value
     # end clip_value
     def sense_compute_actuate(self):
-        pass
+        if(len(self.inputs) > 0 and len(self.inputsPrevious) > 0):
+            # read light sensors
+            # for i in range(8):
+            #     # display light sensor values
+            #     print("Light Sensor {}: {}".format(i, self.inputs[11+i]))
+            # end for
+            print("-----------------")
+
+            # check if every light sensor is 1.0
+            if(all(x == 1.0 for x in self.inputs[11:18])):
+                self.flag_light = False # light is off
+            else:
+                self.flag_light = True # light is on
+                self.flag_dir = 1 # turn according to to light
+            # end if
+
+            # Check for any possible collision
+            if(np.max(self.inputs[3:11]) > 0.4):
+                # Time
+                time = datetime.now()
+                print("({} - {}) Object or walls detected!".format(time.second, time.microsecond))
+            # Turn
+            if(self.flag_turn):
+                self.velocity_left = -0.3
+                self.velocity_right = 0.3
+                if(np.min(self.inputs[0:3])< 0.35):
+                    self.flag_turn = 0
+            else:        
+                # Check end of line
+                if((np.min(self.inputs[0:3])-np.min(self.inputsPrevious[0:3])) > 0.2):
+                    self.flag_turn = 1
+                else:    
+                    # Follow the line    
+                    if(self.inputs[0] < self.inputs[1] and self.inputs[0] < self.inputs[2]):
+                        self.velocity_left = 0.5
+                        self.velocity_right = 1
+                    elif(self.inputs[1] < self.inputs[0] and self.inputs[1] < self.inputs[2]):
+                        self.velocity_left = 1
+                        self.velocity_right = 1    
+                    elif(self.inputs[2] < self.inputs[0] and self.inputs[2] < self.inputs[1]):
+                        self.velocity_left = 1
+                        self.velocity_right = 0.5
+     
+        self.left_motor.setVelocity(self.velocity_left)
+        self.right_motor.setVelocity(self.velocity_right)
     # end sense_compute_actuate
     
-    # taken from lab <n>
+    # mostly taken from lab <n>
     def run_robot(self):
         # main loop
         count = 0
@@ -95,6 +150,17 @@ class Controller:
                 if(tmp < min_ps): tmp = min_ps
                 # save data
                 self.inputs.append((tmp-min_ps)/(max_ps-min_ps))
+            # end for
+            # read light sensor (this code is inspired by the code above, the code above is from lab <n>)
+            for i in range(8):
+                tmp = self.light_sensors[i].getValue()
+                # change the values
+                min_ls = 0
+                max_ls = 1.0 # max from light sensors
+                if(tmp > max_ls): tmp = max_ls
+                if(tmp < min_ls): tmp = min_ls
+                # save data
+                self.inputs.append((tmp-min_ls)/(max_ls-min_ls))
             # end for
             # smooth filter (average)
             smooth = 30
