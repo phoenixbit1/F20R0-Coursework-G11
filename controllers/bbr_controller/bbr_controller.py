@@ -48,6 +48,8 @@ class Controller:
         self.inputs = []
         self.inputsPrevious = []
         
+        # Flag for when we want to be on the line
+        self.on_line = True
         # Flag for if the light was on or off
         # initially False
         self.flag_light = False
@@ -57,6 +59,11 @@ class Controller:
         self.has_turned = False
         # flag for turning at the end of the line
         self.flag_turn = 0
+
+        # avoiding obstacles (inspired by https://github.com/DrakerDG/Webotz/blob/master/e-puck_line.c)
+        self.initially_avoiding = False
+        self.around = False
+        self.recover = False
     # end contructor
     
     # taken from lab 1
@@ -67,7 +74,18 @@ class Controller:
             return -min_max
         return value
     # end clip_value
-    
+
+    # helper to print the inputs
+    def print_inputs(self):
+        for i in range(3):
+            print("Ground Sensor {}: {}".format(i, self.inputs[i]))
+        for i in range(8):
+            print("Proximity Sensor {}: {}".format(i, self.inputs[3+i]))
+        # for i in range(8):
+        #     print("Light Sensor {}: {}".format(i, self.inputs[11+i]))
+        print("-----------------")
+    # end print_inputs
+
     def sense_compute_actuate(self):
         if(len(self.inputs) > 0 and len(self.inputsPrevious) > 0):
             # read light sensors
@@ -82,50 +100,93 @@ class Controller:
                 self.flag_light = False # light is off
             else:
                 self.flag_light = True # light is on
-                self.flag_dir = 1 # turn according to to light
+                self.flag_dir = 1
             # end if
             
-            # print(np.max(self.inputs[3:11]))
-            # Check for any possible collision
-            if(np.max(self.inputs[3:11]) > 0.1):
-                # Time
-                time = datetime.now()
-                print("({} - {}) Object or walls detected!".format(time.second, time.microsecond))
-            # Turn
+            if(np.max(self.inputs[3:11]) > 0.1): # collision
+                # time = datetime.now()
+                # print("({} - {}) Object or walls detected!".format(time.second, time.microsecond))
+                # self.print_inputs()
+
+                # START NOT WORKING YET :(
+                # Avoid the obstacle
+                self.initially_avoiding = True
+                self.on_line = False
+                if self.initially_avoiding:
+                    print("initially avoiding the obstacle")
+                    print("ps2: " + str(self.inputs[5]))
+                    if self.inputs[5] < 0.1:
+                        self.velocity_left = -0.3
+                        self.velocity_right = 0.6
+                    if self.inputs[5] > 0.1:
+                        self.initially_avoiding = False
+                        self.around = True
+                if self.around == True:
+                    print("going around the obstacle")
+                    print("ps2: " + str(self.inputs[5]))
+                    print("ps3: " + str(self.inputs[6]))
+                    if self.inputs[6] < 0.1:
+                        self.velocity_left = 0.3
+                        self.velocity_right = -0.6
+                    if self.inputs[5] > 0.1:
+                        # go in a straight line
+                        self.velocity_left = 0.5
+                        self.velocity_right = 0.5
+                    if self.inputs[6] > 0.1:
+                        # go right
+                        self.velocity_left = 0.3
+                        self.velocity_right = -0.6
+                        self.around = False
+                        self.recover = True
+                if self.recover == True:
+                    print("recovering from the obstacle")
+                    self.print_inputs()
+                    if self.inputs[7] > 0.1:
+                        self.velocity_left = 0.3
+                        self.velocity_right = -0.6
+                    else:
+                        self.recover = False
+                        self.on_line = True
+            # we should have avoided the obstacle by now
+            # END NOT WORKING YET :(
+            
             # print(f"flag turn: {self.flag_turn}")
             # print(f"has turned: {self.has_turned}")
             # print(self.inputs[0:3])
             # print(self.inputsPrevious[0:3])
-            if(self.flag_turn):
-                if(np.min(self.inputs[0:3])< 0.35):
-                    self.flag_turn = 0
-            else:
-                # Check end of line
-                if((np.min(self.inputs[0:3])-np.min(self.inputsPrevious[0:3])) > 0.2):
-                    print("End of line detected!")
-                    self.flag_turn = 1
-                    # turn depending on the light
-                    if self.has_turned == False:
-                        if self.flag_dir == 1: # light is on
-                            self.velocity_left = -0.3
-                            self.velocity_right = 0.3
-                            self.has_turned = True
-                        else: # light is off 
-                            self.velocity_left = 0.3
-                            self.velocity_right = -0.3
-                            self.has_turned = True
+            if self.on_line == True: # Follow the line when we want to
+                if(self.flag_turn):
+                    if(np.min(self.inputs[0:3])< 0.35):
+                        self.flag_turn = 0
                 else:
-                    # Follow the line    
-                    if(self.inputs[0] < self.inputs[1] and self.inputs[0] < self.inputs[2]):
-                        self.velocity_left = 0.5
-                        self.velocity_right = 1
-                    elif(self.inputs[1] < self.inputs[0] and self.inputs[1] < self.inputs[2]):
-                        self.velocity_left = 1
-                        self.velocity_right = 1    
-                    elif(self.inputs[2] < self.inputs[0] and self.inputs[2] < self.inputs[1]):
-                        self.velocity_left = 1
-                        self.velocity_right = 0.5
-     
+                    # Check end of line
+                    if((np.min(self.inputs[0:3])-np.min(self.inputsPrevious[0:3])) > 0.2):
+                        print("End of line detected!")
+                        self.flag_turn = 1
+                        # turn depending on the light
+                        if self.has_turned == False:
+                            if self.flag_dir == 1: # light is on
+                                self.velocity_left = -0.3
+                                self.velocity_right = 0.3
+                                self.has_turned = True
+                            else: # light is off 
+                                self.velocity_left = 0.3
+                                self.velocity_right = -0.3
+                                self.has_turned = True
+                    else:
+                        if(self.inputs[0] < self.inputs[1] and self.inputs[0] < self.inputs[2]):
+                            self.velocity_left = 0.5
+                            self.velocity_right = 1
+                        elif(self.inputs[1] < self.inputs[0] and self.inputs[1] < self.inputs[2]):
+                            self.velocity_left = 1
+                            self.velocity_right = 1    
+                        elif(self.inputs[2] < self.inputs[0] and self.inputs[2] < self.inputs[1]):
+                            self.velocity_left = 1
+                            self.velocity_right = 0.5
+                    # end if
+                # end if
+            # end if
+        # end if
         self.left_motor.setVelocity(self.velocity_left)
         self.right_motor.setVelocity(self.velocity_right)
     # end sense_compute_actuate

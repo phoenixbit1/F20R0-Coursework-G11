@@ -28,14 +28,14 @@ class SupervisorController:
         self.translation_field.setSFVec3f(initial_translation)
         self.rotation_field.setSFVec3f(initial_rotation)
         # set light on (T) or off (F)
-        self.spotlight_node.getField('on').setSFBool(True)
+        self.spotlight_node.getField('on').setSFBool(False)
         # run until robot is in the reward zone
-        while self.supervisor.step(self.time_step) != -1:
-            # if self.supervisor.getTime() % 1 < 0.1:
-                # print('Robot t: ' + str(self.translation_field.getSFVec3f()))
-                # print('Robot r: ' + str(self.rotation_field.getSFVec3f()))
-            # todo: check if the robot is in the reward section, then stop!
-            pass
+        # while self.supervisor.step(self.time_step) != -1:
+        #     # if self.supervisor.getTime() % 1 < 0.1:
+        #         # print('Robot t: ' + str(self.translation_field.getSFVec3f()))
+        #         # print('Robot r: ' + str(self.rotation_field.getSFVec3f()))
+        #     # todo: check if the robot is in the reward section, then stop!
+        #     pass
         # end while
     # end run
 # end class SupervisorController
