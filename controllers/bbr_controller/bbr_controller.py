@@ -59,7 +59,7 @@ class Controller:
         self.flag_turn = 0
     # end contructor
     
-    # taken from lab <n>
+    # taken from lab 1
     def clip_value(self, value, min_max):
         if (value > min_max):
             return min_max
@@ -67,6 +67,7 @@ class Controller:
             return -min_max
         return value
     # end clip_value
+    
     def sense_compute_actuate(self):
         if(len(self.inputs) > 0 and len(self.inputsPrevious) > 0):
             # read light sensors
