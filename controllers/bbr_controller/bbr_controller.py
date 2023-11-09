@@ -4,7 +4,7 @@ from datetime import datetime
 import math
 import numpy as np
 
-# basic architecture taken from labs <insert labs>
+# basic architecture taken from labs 1,2
 class Controller:
     def __init__(self, robot):
         self.robot = robot
@@ -129,7 +129,7 @@ class Controller:
         self.right_motor.setVelocity(self.velocity_right)
     # end sense_compute_actuate
     
-    # mostly taken from lab <n>
+    # mostly taken from lab 1
     def run_robot(self):
         # main loop
         count = 0
@@ -167,7 +167,7 @@ class Controller:
                 # save data
                 self.inputs.append((tmp-min_ps)/(max_ps-min_ps))
             # end for
-            # read light sensor (this code is inspired by the code above, the code above is from lab <n>)
+            # read light sensor (this code is inspired by the code above, the code above is from lab 1)
             for i in range(8):
                 tmp = self.light_sensors[i].getValue()
                 # change the values
