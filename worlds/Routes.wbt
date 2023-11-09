@@ -11,7 +11,7 @@ WorldInfo {
 }
 Viewpoint {
   orientation -0.5714895698802404 0.5714896191010924 0.5888966690156994 2.077166964329482
-  position -0.11249127756418792 -0.07275091845924314 4.243679212649823
+  position -0.1124879103519883 -0.10744196513412121 5.399809539887321
 }
 RectangleArena {
   translation -0.0309432 0.161318 0
@@ -49,7 +49,7 @@ WoodenBox {
 TexturedBackground {
   texture "empty_office"
 }
-E-puck {
+DEF Controller E-puck {
   hidden position_0_0 3.211311634813818
   hidden position_0_1 3.2058878914001827
   hidden rotation_1 0 1 0 3.211311634813818
@@ -157,7 +157,7 @@ DEF OBS_Cyn1 Solid {
     radius 0.05
   }
 }
-SpotLight {
+DEF spotlight SpotLight {
   attenuation 0 0 2
   beamWidth 0.1
   cutOffAngle 0.16
@@ -170,4 +170,8 @@ OilBarrel {
   name "beacon"
   height 0.1
   radius 0.05
+}
+DEF Supervisor Robot {
+  controller "bbr_supervisor"
+  supervisor TRUE
 }

@@ -53,7 +53,9 @@ class Controller:
         self.flag_light = False
         # flag for what direction to turn
         self.flag_dir = 0
-        # flag for avoiding obstacles
+        # flag for if the robot has turned
+        self.has_turned = False
+        # flag for turning at the end of the line
         self.flag_turn = 0
     # end contructor
     
@@ -72,7 +74,7 @@ class Controller:
             #     # display light sensor values
             #     print("Light Sensor {}: {}".format(i, self.inputs[11+i]))
             # end for
-            print("-----------------")
+            # print("-----------------")
 
             # check if every light sensor is 1.0
             if(all(x == 1.0 for x in self.inputs[11:18])):
@@ -81,23 +83,37 @@ class Controller:
                 self.flag_light = True # light is on
                 self.flag_dir = 1 # turn according to to light
             # end if
-
+            
+            # print(np.max(self.inputs[3:11]))
             # Check for any possible collision
-            if(np.max(self.inputs[3:11]) > 0.4):
+            if(np.max(self.inputs[3:11]) > 0.1):
                 # Time
                 time = datetime.now()
                 print("({} - {}) Object or walls detected!".format(time.second, time.microsecond))
             # Turn
+            # print(f"flag turn: {self.flag_turn}")
+            # print(f"has turned: {self.has_turned}")
+            # print(self.inputs[0:3])
+            # print(self.inputsPrevious[0:3])
             if(self.flag_turn):
-                self.velocity_left = -0.3
-                self.velocity_right = 0.3
                 if(np.min(self.inputs[0:3])< 0.35):
                     self.flag_turn = 0
-            else:        
+            else:
                 # Check end of line
                 if((np.min(self.inputs[0:3])-np.min(self.inputsPrevious[0:3])) > 0.2):
+                    print("End of line detected!")
                     self.flag_turn = 1
-                else:    
+                    # turn depending on the light
+                    if self.has_turned == False:
+                        if self.flag_dir == 1: # light is on
+                            self.velocity_left = -0.3
+                            self.velocity_right = 0.3
+                            self.has_turned = True
+                        else: # light is off 
+                            self.velocity_left = 0.3
+                            self.velocity_right = -0.3
+                            self.has_turned = True
+                else:
                     # Follow the line    
                     if(self.inputs[0] < self.inputs[1] and self.inputs[0] < self.inputs[2]):
                         self.velocity_left = 0.5
