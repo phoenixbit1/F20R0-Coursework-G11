@@ -128,18 +128,19 @@ class Controller:
                         # turn left
                         self.left_motor.setVelocity(-1)
                         self.right_motor.setVelocity(1)
-                    if self.proximity_sensors[2].getValue() >= 280:
-                        # go in straight line
-                        self.left_motor.setVelocity(0.3)
-                        self.right_motor.setVelocity(0.3)
+                    if self.proximity_sensors[2].getValue() >= 300:
+                        # print("here1")
                         self.initially_avoiding = False
                         self.around = True
                 if self.around:
+                    self.initially_avoiding = False # just in case
                     print("around")
-                    if self.proximity_sensors[0].getValue() < 280:
+                    print("proximity sensor 2: {}".format(self.proximity_sensors[2].getValue()))
+                    if self.proximity_sensors[2].getValue() < 280:
+                        # print("here2")
                         # turn right
                         self.left_motor.setVelocity(0.5)
-                        self.right_motor.setVelocity(-0.5)
+                        self.right_motor.setVelocity(-1)
                     if self.left_ir.getValue() < 400 or self.center_ir.getValue() < 400 or self.right_ir.getValue() < 400:
                         self.around = False
                         self.recover = True
