@@ -3,6 +3,7 @@ from controller import Robot
 from datetime import datetime
 import math
 import numpy as np
+import time
 
 # basic architecture taken from labs 1,2
 class Controller:
@@ -61,9 +62,11 @@ class Controller:
         self.flag_turn = 0
 
         # avoiding obstacles (inspired by https://github.com/DrakerDG/Webotz/blob/master/e-puck_line.c)
-        self.initially_avoiding = False
-        self.around = False
-        self.recover = False
+        self.initially_avoiding = False # initially avoiding the obstacle
+        self.around = False # going around the obstacle
+        # count used to determine the times we have gone right when going around the obstacle
+        self.around_count = 0
+        self.recover = False # recovering onto the line
     # end contructor
     
     # taken from lab 1
@@ -86,74 +89,70 @@ class Controller:
         print("-----------------")
     # end print_inputs
 
+    def get_scaled_pvalue(self, index):
+        val = self.proximity_sensors[index].getValue()
+        min_ps = 0
+        max_ps = 2400
+        if(val > max_ps): val = max_ps
+        if(val < min_ps): val = min_ps
+        return (val-min_ps)/(max_ps-min_ps)
+    # end get_scaled_pvalue
+
     def sense_compute_actuate(self):
         if(len(self.inputs) > 0 and len(self.inputsPrevious) > 0):
-            # read light sensors
-            # for i in range(8):
-            #     # display light sensor values
-            #     print("Light Sensor {}: {}".format(i, self.inputs[11+i]))
+            print("Avoidance States: {}, {}, {}".format(self.initially_avoiding, self.around, self.recover))
+            print("Ground Sensor 0: {}".format(self.left_ir.getValue()))
+            print("Ground Sensor 1: {}".format(self.center_ir.getValue()))
+            print("Ground Sensor 2: {}".format(self.right_ir.getValue()))
+            # read sensors
+            for i in range(8):
+                # display light sensor values
+                print("P Sensor {}: {}".format(i, self.proximity_sensors[i].getValue()))
             # end for
-            # print("-----------------")
+            print("-----------------")
 
             # check if every light sensor is 1.0
             if(all(x == 1.0 for x in self.inputs[11:18])):
-                self.flag_light = False # light is off
+                self.flag_light = False # light is off, self.flag_dir is 0 by default
             else:
                 self.flag_light = True # light is on
                 self.flag_dir = 1
             # end if
             
-            if(np.max(self.inputs[3:11]) > 0.1): # collision
-                # time = datetime.now()
-                # print("({} - {}) Object or walls detected!".format(time.second, time.microsecond))
-                # self.print_inputs()
-
-                # START NOT WORKING YET :(
-                # Avoid the obstacle
+            if(np.max(self.inputs[3:11]) > 0.1): # collision (or in the collision state)
                 self.initially_avoiding = True
                 self.on_line = False
                 if self.initially_avoiding:
-                    print("initially avoiding the obstacle")
-                    print("ps2: " + str(self.inputs[5]))
-                    if self.inputs[5] < 0.1:
-                        self.velocity_left = -0.3
-                        self.velocity_right = 0.6
-                    if self.inputs[5] > 0.1:
+                    print("avoiding")
+                    if self.proximity_sensors[2].getValue() < 280:
+                        # turn left
+                        self.left_motor.setVelocity(-1)
+                        self.right_motor.setVelocity(1)
+                    if self.proximity_sensors[2].getValue() >= 280:
+                        # go in straight line
+                        self.left_motor.setVelocity(0.3)
+                        self.right_motor.setVelocity(0.3)
                         self.initially_avoiding = False
                         self.around = True
-                if self.around == True:
-                    print("going around the obstacle")
-                    print("ps2: " + str(self.inputs[5]))
-                    print("ps3: " + str(self.inputs[6]))
-                    if self.inputs[6] < 0.1:
-                        self.velocity_left = 0.3
-                        self.velocity_right = -0.6
-                    if self.inputs[5] > 0.1:
-                        # go in a straight line
-                        self.velocity_left = 0.5
-                        self.velocity_right = 0.5
-                    if self.inputs[6] > 0.1:
-                        # go right
-                        self.velocity_left = 0.3
-                        self.velocity_right = -0.6
+                if self.around:
+                    print("around")
+                    if self.proximity_sensors[0].getValue() < 280:
+                        # turn right
+                        self.left_motor.setVelocity(0.5)
+                        self.right_motor.setVelocity(-0.5)
+                    if self.left_ir.getValue() < 400 or self.center_ir.getValue() < 400 or self.right_ir.getValue() < 400:
                         self.around = False
                         self.recover = True
-                if self.recover == True:
-                    print("recovering from the obstacle")
-                    self.print_inputs()
-                    if self.inputs[7] > 0.1:
-                        self.velocity_left = 0.3
-                        self.velocity_right = -0.6
+                if self.recover:
+                    print("recovering")
+                    if self.proximity_sensors[2].getValue() > 80:
+                        self.left_motor.setVelocity(self.max_speed)
+                        self.right_motor.setVelocity(-self.max_speed)
                     else:
                         self.recover = False
-                        self.on_line = True
-            # we should have avoided the obstacle by now
-            # END NOT WORKING YET :(
-            
-            # print(f"flag turn: {self.flag_turn}")
-            # print(f"has turned: {self.has_turned}")
-            # print(self.inputs[0:3])
-            # print(self.inputsPrevious[0:3])
+                        self.on_line = True # go back on the line
+            # end avoid obstacles
+
             if self.on_line == True: # Follow the line when we want to
                 if(self.flag_turn):
                     if(np.min(self.inputs[0:3])< 0.35):

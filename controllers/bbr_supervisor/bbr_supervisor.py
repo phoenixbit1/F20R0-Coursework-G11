@@ -8,7 +8,6 @@ import sys
 class SupervisorController:
     def __init__(self):
         self.time_step = 32 # milliseconds
-        self.time_light = 40
         self.flag_light = False # flag for if the light was on or off (False = Off, True = On)
         self.supervisor = Supervisor()
         self.robot_node = self.supervisor.getFromDef('Controller')
