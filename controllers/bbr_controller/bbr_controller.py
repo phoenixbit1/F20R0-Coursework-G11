@@ -11,7 +11,6 @@ class Controller:
         self.robot = robot
         self.time_step = 32 # milliseconds
         self.max_speed = 1   # meters per second
-        
         # motors
         self.left_motor = self.robot.getDevice('left wheel motor')
         self.right_motor = self.robot.getDevice('right wheel motor')
@@ -60,13 +59,10 @@ class Controller:
         self.has_turned = False
         # flag for turning at the end of the line
         self.flag_turn = 0
-
-        # avoiding obstacles (inspired by https://github.com/DrakerDG/Webotz/blob/master/e-puck_line.c)
-        self.initially_avoiding = False # initially avoiding the obstacle
-        self.around = False # going around the obstacle
-        # count used to determine the times we have gone right when going around the obstacle
-        self.around_count = 0
-        self.recover = False # recovering onto the line
+        # flag for being in the avoiding state
+        self.avoiding = False
+        # number of obstacles avoided
+        self.obstacles_avoided = 0 # should end at 2
     # end contructor
     
     # taken from lab 1
@@ -89,27 +85,16 @@ class Controller:
         print("-----------------")
     # end print_inputs
 
-    def get_scaled_pvalue(self, index):
-        val = self.proximity_sensors[index].getValue()
-        min_ps = 0
-        max_ps = 2400
-        if(val > max_ps): val = max_ps
-        if(val < min_ps): val = min_ps
-        return (val-min_ps)/(max_ps-min_ps)
-    # end get_scaled_pvalue
-
+    # inspired by lab 1
     def sense_compute_actuate(self):
         if(len(self.inputs) > 0 and len(self.inputsPrevious) > 0):
-            print("Avoidance States: {}, {}, {}".format(self.initially_avoiding, self.around, self.recover))
-            print("Ground Sensor 0: {}".format(self.left_ir.getValue()))
-            print("Ground Sensor 1: {}".format(self.center_ir.getValue()))
-            print("Ground Sensor 2: {}".format(self.right_ir.getValue()))
-            # read sensors
-            for i in range(8):
-                # display light sensor values
-                print("P Sensor {}: {}".format(i, self.proximity_sensors[i].getValue()))
-            # end for
-            print("-----------------")
+            # print("Avoidance States: {}, {}, {}".format(self.initially_avoiding, self.around, self.recover))
+            # # read sensors
+            # for i in range(8):
+            #     # display light sensor values
+            #     print("P Sensor {}: {}".format(i, self.proximity_sensors[i].getValue()))
+            # # end for
+            # print("-----------------")
 
             # check if every light sensor is 1.0
             if(all(x == 1.0 for x in self.inputs[11:18])):
@@ -118,41 +103,47 @@ class Controller:
                 self.flag_light = True # light is on
                 self.flag_dir = 1
             # end if
+            # np.max(self.inputs[3:11]) > 0.1
+
+            print("Ground Sensor 0: {}".format(self.left_ir.getValue()))
+            print("Ground Sensor 1: {}".format(self.center_ir.getValue()))
+            print("Ground Sensor 2: {}".format(self.right_ir.getValue()))
             
-            if(np.max(self.inputs[3:11]) > 0.1): # collision (or in the collision state)
-                self.initially_avoiding = True
-                self.on_line = False
-                if self.initially_avoiding:
-                    print("avoiding")
-                    if self.proximity_sensors[2].getValue() < 280:
-                        # turn left
-                        self.left_motor.setVelocity(-1)
-                        self.right_motor.setVelocity(1)
-                    if self.proximity_sensors[2].getValue() >= 300:
-                        # print("here1")
-                        self.initially_avoiding = False
-                        self.around = True
-                if self.around:
-                    self.initially_avoiding = False # just in case
-                    print("around")
-                    print("proximity sensor 2: {}".format(self.proximity_sensors[2].getValue()))
-                    if self.proximity_sensors[2].getValue() < 280:
-                        # print("here2")
-                        # turn right
-                        self.left_motor.setVelocity(0.5)
-                        self.right_motor.setVelocity(-1)
-                    if self.left_ir.getValue() < 400 or self.center_ir.getValue() < 400 or self.right_ir.getValue() < 400:
-                        self.around = False
-                        self.recover = True
-                if self.recover:
-                    print("recovering")
-                    if self.proximity_sensors[2].getValue() > 80:
-                        self.left_motor.setVelocity(self.max_speed)
-                        self.right_motor.setVelocity(-self.max_speed)
-                    else:
-                        self.recover = False
-                        self.on_line = True # go back on the line
-            # end avoid obstacles
+            s1 = False
+            s2 = False
+            s3 = False
+            # note add self.obstacles_avoided < 2 when you figured out how to get back onto the line
+            if((np.max(self.inputs[3:11]) > 0.1) or self.avoiding): # object is near
+                if self.proximity_sensors[7].getValue() > 280 or self.proximity_sensors[0].getValue() > 280:
+                    print("wall in front")
+                    self.left_motor.setVelocity(-1)
+                    self.right_motor.setVelocity(1)
+                    self.avoiding = True
+                    self.on_line = False
+                else: # no wall in front
+                    if self.proximity_sensors[2].getValue() > 80: # wall to the right
+                        print("wall to the right")
+                        self.left_motor.setVelocity(0.3)
+                        self.right_motor.setVelocity(0.3)
+                        s1 = True # completed step 1
+                    if self.proximity_sensors[2].getValue() < 80: # no wall to the right anymore
+                        print("no wall to the right anymore")
+                        # turn right slowly
+                        self.left_motor.setVelocity(0.6)
+                        self.right_motor.setVelocity(0.1)
+                        s2 = True # completed step 2
+                    if self.proximity_sensors[2].getValue() < 80 and s1 and s2:
+                        print("final turn right and get back onto the line") 
+                        # we are turning right at the end of the obstacle 
+                        self.left_motor.setVelocity(0.6)
+                        self.right_motor.setVelocity(0.1)
+                        s3 = True # completed step 3
+            if s1 and s2 and s3 or (s1 and s2): # we've completed all the steps
+                self.left_motor.setVelocity(0.1)
+                self.right_motor.setVelocity(0.6)
+                self.avoiding = False
+                self.on_line = True # go back on the line
+            # end avoiding obstacle
 
             if self.on_line == True: # Follow the line when we want to
                 if(self.flag_turn):
@@ -166,29 +157,23 @@ class Controller:
                         # turn depending on the light
                         if self.has_turned == False:
                             if self.flag_dir == 1: # light is on
-                                self.velocity_left = -0.3
-                                self.velocity_right = 0.3
+                                self.left_motor.setVelocity(-0.3)
+                                self.right_motor.setVelocity(0.3)
                                 self.has_turned = True
-                            else: # light is off 
-                                self.velocity_left = 0.3
-                                self.velocity_right = -0.3
+                            else: # light is off
+                                self.left_motor.setVelocity(0.3)
+                                self.right_motor.setVelocity(-0.3)
                                 self.has_turned = True
                     else:
                         if(self.inputs[0] < self.inputs[1] and self.inputs[0] < self.inputs[2]):
-                            self.velocity_left = 0.5
-                            self.velocity_right = 1
+                            self.left_motor.setVelocity(0.5)
+                            self.right_motor.setVelocity(1)
                         elif(self.inputs[1] < self.inputs[0] and self.inputs[1] < self.inputs[2]):
-                            self.velocity_left = 1
-                            self.velocity_right = 1    
+                            self.left_motor.setVelocity(1)
+                            self.right_motor.setVelocity(1)
                         elif(self.inputs[2] < self.inputs[0] and self.inputs[2] < self.inputs[1]):
-                            self.velocity_left = 1
-                            self.velocity_right = 0.5
-                    # end if
-                # end if
-            # end if
-        # end if
-        self.left_motor.setVelocity(self.velocity_left)
-        self.right_motor.setVelocity(self.velocity_right)
+                            self.left_motor.setVelocity(1)
+                            self.right_motor.setVelocity(0.5)
     # end sense_compute_actuate
     
     # mostly taken from lab 1
