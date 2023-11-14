@@ -1,7 +1,7 @@
 """bbr_supervisor controller.
 Author: Jacob Turner
 """
-from controller import Supervisor, Field
+from controller import Supervisor
 import sys
 
 # architecture inspired by lab 2
@@ -29,12 +29,14 @@ class SupervisorController:
         # set light on (T) or off (F)
         self.spotlight_node.getField('on').setSFBool(False)
         # run until robot is in the reward zone
-        # while self.supervisor.step(self.time_step) != -1:
-        #     # if self.supervisor.getTime() % 1 < 0.1:
-        #         # print('Robot t: ' + str(self.translation_field.getSFVec3f()))
-        #         # print('Robot r: ' + str(self.rotation_field.getSFVec3f()))
-        #     # todo: check if the robot is in the reward section, then stop!
-        #     pass
+        while self.supervisor.step(self.time_step) != -1:
+            # if self.supervisor.getTime() % 1 < 0.1:
+            #     print('Robot t: ' + str(self.translation_field.getSFVec3f()))
+            #     print('Robot r: ' + str(self.rotation_field.getSFVec3f()))
+            #     print('Robot p: ' + str(self.robot_node.getPosition()))
+            if self.robot_node.getPosition()[0] > 0.101 and self.robot_node.getPosition()[1] > 0.93:
+                print('Robot is in reward zone')
+                break
         # end while
     # end run
 # end class SupervisorController
@@ -43,3 +45,5 @@ if __name__ == "__main__":
     print("Starting Supervisor Controller")
     supervisor_controller = SupervisorController()
     supervisor_controller.run()
+    sys.exit(0)
+# end main

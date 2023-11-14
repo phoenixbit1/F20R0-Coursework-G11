@@ -1,12 +1,12 @@
 # Author: Jacob Turner
 from controller import Robot
 from datetime import datetime
-import math
 import numpy as np
-import time
+import sys
 
 # basic architecture taken from labs 1,2
 class Controller:
+
     def __init__(self, robot):
         self.robot = robot
         self.time_step = 32 # milliseconds
@@ -22,6 +22,7 @@ class Controller:
         # set the velocoties to 0
         self.velocity_left = 0
         self.velocity_right = 0
+
         # Enable Proximity Sensors
         self.proximity_sensors = []
         for i in range(8):
@@ -62,7 +63,13 @@ class Controller:
         # flag for being in the avoiding state
         self.avoiding = False
         # number of obstacles avoided
-        self.obstacles_avoided = 0 # should end at 2
+        self.s1 = False
+        self.s2 = False
+        self.s3 = False
+        self.passed_obstacle = False
+        self.counter_passed_obstacles = 0 # counter for passed obstacles
+        self.end_of_line_detected = False # end of line during obstacle avoidance cycle
+        self.in_reward_zone = False # flag for if we are in the reward zone
     # end contructor
     
     # taken from lab 1
@@ -88,14 +95,6 @@ class Controller:
     # inspired by lab 1
     def sense_compute_actuate(self):
         if(len(self.inputs) > 0 and len(self.inputsPrevious) > 0):
-            # print("Avoidance States: {}, {}, {}".format(self.initially_avoiding, self.around, self.recover))
-            # # read sensors
-            # for i in range(8):
-            #     # display light sensor values
-            #     print("P Sensor {}: {}".format(i, self.proximity_sensors[i].getValue()))
-            # # end for
-            # print("-----------------")
-
             # check if every light sensor is 1.0
             if(all(x == 1.0 for x in self.inputs[11:18])):
                 self.flag_light = False # light is off, self.flag_dir is 0 by default
@@ -103,55 +102,88 @@ class Controller:
                 self.flag_light = True # light is on
                 self.flag_dir = 1
             # end if
-            # np.max(self.inputs[3:11]) > 0.1
 
-            print("Ground Sensor 0: {}".format(self.left_ir.getValue()))
-            print("Ground Sensor 1: {}".format(self.center_ir.getValue()))
-            print("Ground Sensor 2: {}".format(self.right_ir.getValue()))
-            
-            s1 = False
-            s2 = False
-            s3 = False
-            # note add self.obstacles_avoided < 2 when you figured out how to get back onto the line
-            if((np.max(self.inputs[3:11]) > 0.1) or self.avoiding): # object is near
+            if self.in_reward_zone:
+                self.left_motor.setVelocity(0.2)
+                self.right_motor.setVelocity(0.2)
+                if self.proximity_sensors[7].getValue() > 500 and self.proximity_sensors[0].getValue() > 500:
+                    self.left_motor.setVelocity(0)
+                    self.right_motor.setVelocity(0)
+                    # we are now at the end
+                    print("we are now at the end")
+                    sys.exit(0)
+            # end
+
+            # print("Ground Sensor 0: {}".format(self.left_ir.getValue()))
+            # print("Ground Sensor 1: {}".format(self.center_ir.getValue()))
+            # print("Ground Sensor 2: {}".format(self.right_ir.getValue()))
+            if(((np.max(self.inputs[3:11]) > 0.1) or self.avoiding) and not self.in_reward_zone): # object is near
                 if self.proximity_sensors[7].getValue() > 280 or self.proximity_sensors[0].getValue() > 280:
+                    if self.s3 and self.passed_obstacle and self.counter_passed_obstacles != 2:
+                        self.passed_obstacle = False
+                        self.s1 = False
+                        self.s2 = False
+                        self.s3 = False
+                        self.counter_passed_obstacles += 1
+                    elif self.s3 and self.passed_obstacle and self.counter_passed_obstacles == 2:
+                        self.passed_obstacle = False
+                        self.s1 = False
+                        self.s2 = False
+                        self.s3 = False 
+                        
                     print("wall in front")
-                    self.left_motor.setVelocity(-1)
-                    self.right_motor.setVelocity(1)
-                    self.avoiding = True
-                    self.on_line = False
+                    # for when we are in the reward zone
+                    if self.proximity_sensors[6].getValue() > 100 and self.proximity_sensors[2].getValue() > 100 \
+                        and self.proximity_sensors[7].getValue() > 100 and self.proximity_sensors[1].getValue() > 100:
+                        # we are probably in the reward zone
+                        print("we are probably in the reward zone")
+                        self.in_reward_zone = True
+                    if not self.in_reward_zone:
+                        # In the general case, we should go straight here
+                        self.left_motor.setVelocity(-1)
+                        self.right_motor.setVelocity(1)
+                        self.avoiding = True
+                        self.on_line = False
                 else: # no wall in front
                     if self.proximity_sensors[2].getValue() > 80: # wall to the right
                         print("wall to the right")
                         self.left_motor.setVelocity(0.3)
                         self.right_motor.setVelocity(0.3)
-                        s1 = True # completed step 1
+                        self.s1 = True # completed step 1
+                        # print("s1, s2, s3 :  {}, {}, {}".format(self.s1,self.s2,self.s3))
                     if self.proximity_sensors[2].getValue() < 80: # no wall to the right anymore
                         print("no wall to the right anymore")
                         # turn right slowly
                         self.left_motor.setVelocity(0.6)
                         self.right_motor.setVelocity(0.1)
-                        s2 = True # completed step 2
-                    if self.proximity_sensors[2].getValue() < 80 and s1 and s2:
+                        self.s2 = True # completed step 2
+                        # print("s1, s2, s3 :  {}, {}, {}".format(self.s1,self.s2,self.s3))
+                    if self.proximity_sensors[2].getValue() < 80 and self.s1 and self.s2:
                         print("final turn right and get back onto the line") 
                         # we are turning right at the end of the obstacle 
                         self.left_motor.setVelocity(0.6)
                         self.right_motor.setVelocity(0.1)
-                        s3 = True # completed step 3
-            if s1 and s2 and s3 or (s1 and s2): # we've completed all the steps
-                self.left_motor.setVelocity(0.1)
-                self.right_motor.setVelocity(0.6)
+                        self.s3 = True # completed step 3
+                        # print("s1, s2, s3 :  {}, {}, {}".format(self.s1,self.s2,self.s3))
+            if (self.s3 and (self.left_ir.getValue() < 700 or self.right_ir.getValue() < 700 or self.center_ir.getValue() < 700)): # we've completed all the steps
+                # print("hit")
+                self.left_motor.setVelocity(-0.1)
+                self.right_motor.setVelocity(0.3)
                 self.avoiding = False
                 self.on_line = True # go back on the line
+                # print(self.counter_passed_obstacles)
             # end avoiding obstacle
 
             if self.on_line == True: # Follow the line when we want to
+                
                 if(self.flag_turn):
                     if(np.min(self.inputs[0:3])< 0.35):
                         self.flag_turn = 0
                 else:
                     # Check end of line
                     if((np.min(self.inputs[0:3])-np.min(self.inputsPrevious[0:3])) > 0.2):
+                        if self.counter_passed_obstacles == 2:
+                            self.end_of_line_detected = True
                         print("End of line detected!")
                         self.flag_turn = 1
                         # turn depending on the light
@@ -168,9 +200,28 @@ class Controller:
                         if(self.inputs[0] < self.inputs[1] and self.inputs[0] < self.inputs[2]):
                             self.left_motor.setVelocity(0.5)
                             self.right_motor.setVelocity(1)
+                            # below are a series of cases for the avoiding obstacle part, if is mainly to do with rejoining the line after avoiding
+                            if (self.s3 and (self.left_ir.getValue() < 700 or self.right_ir.getValue() < 700 or self.center_ir.getValue() < 700)):
+                                self.left_motor.setVelocity(-0.1)
+                                self.right_motor.setVelocity(0.3)
+                                self.passed_obstacle= True
+                                if self.counter_passed_obstacles == 2 and self.proximity_sensors[0].getValue() > 100:
+                                    self.left_motor.setVelocity(-0.1)
+                                    self.right_motor.setVelocity(0.3)
+                                if self.counter_passed_obstacles == 1 and (self.passed_obstacle and (self.left_ir.getValue() < 700 and self.right_ir.getValue() < 700 and self.center_ir.getValue() < 700)):
+                                    self.counter_passed_obstacles = 2
+                                if self.counter_passed_obstacles == 2 and (self.left_ir.getValue() < 620 and self.end_of_line_detected):
+                                    self.left_motor.setVelocity(0.3)
+                                    self.right_motor.setVelocity(-0.1)
+                                if self.counter_passed_obstacles == 2 and (self.left_ir.getValue() < 305 and self.right_ir.getValue() < 305 and self.left_ir.getValue() > 295 and self.right_ir.getValue() > 295 and self.end_of_line_detected):
+                                    self.left_motor.setVelocity(0.2)
+                                    self.right_motor.setVelocity(-0.1)
                         elif(self.inputs[1] < self.inputs[0] and self.inputs[1] < self.inputs[2]):
                             self.left_motor.setVelocity(1)
                             self.right_motor.setVelocity(1)
+                            if self.counter_passed_obstacles == 2 and (self.left_ir.getValue() < 305 and self.right_ir.getValue() < 305 and self.left_ir.getValue() > 295 and self.right_ir.getValue() > 295 and self.end_of_line_detected):
+                                self.left_motor.setVelocity(0.2)
+                                self.right_motor.setVelocity(-0.1)
                         elif(self.inputs[2] < self.inputs[0] and self.inputs[2] < self.inputs[1]):
                             self.left_motor.setVelocity(1)
                             self.right_motor.setVelocity(0.5)
